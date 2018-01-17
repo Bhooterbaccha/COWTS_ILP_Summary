@@ -1,7 +1,11 @@
+from __future__ import print_function
+from optlang.glpk_interface import Model, Variable, Constraint, Objective
+from sympy import sympify
+
 import sys
 import os
 from operator import itemgetter
-from gurobipy import *
+#from gurobipy import *
 import math
 from textblob import *
 import re
@@ -16,7 +20,7 @@ start_time = time.time()
 lmtzr = WordNetLemmatizer()
 
 # IMPLEMENTATION BY KOUSTAV RUDRA, IIT KHARAGPUR
-for x in xrange(0,1):
+for x in range(0,1):
     pass
     WORD = re.compile(r'\w+')
     cachedstopwords = stopwords.words("english")
@@ -155,64 +159,188 @@ for x in xrange(0,1):
 
         ################### Define the Model #############################################################
 
-        m = Model("sol1")
+        optlang_solve = open("optlang_solve.py", 'w')
+        optlang_solve.write("from __future__ import print_function\n")
+        optlang_solve.write("from optlang.glpk_interface import Model, Variable, Constraint, Objective\n\n")
+
+        m = Model(name='sol1')
 
         ############ First Add tweet variables ############################################################
         
         sen_var = []
         for i in range(0,len(sen),1):
-            sen_var.append(m.addVar(vtype=GRB.BINARY, name="x%d" % (i+1)))
+            sen_var.append("x%d" % (i+1))
+            #sen_var[i] = Variable("x%d" % (i+1), lb=0)
+            #print(sen_var[i])
+            #print("x%d" % (i+1))
+            optlang_solve.write("x%d" % (i+1) + " = Variable('" + "x%d" % (i+1) + "', lb=0)"  "\n")
+
+        
 
         ############ Add entities variables ################################################################
 
         con_var = []
         for i in range(0,len(entities),1):
-            con_var.append(m.addVar(vtype=GRB.BINARY, name="y%d" % (i+1)))
+            con_var.append("y%d" % (i+1))
+            #con_var[i] = Variable("y%d" % (i+1), lb=0)
+            #print(con_var[i])
+            optlang_solve.write("y%d" % (i+1) + " = Variable('" + "y%d" % (i+1) + "', lb=0)"  "\n")
+
+        
         
         ########### Integrate Variables ####################################################################
-        m.update()
+        #m.update()
 
-        P = LinExpr() # Contains objective function
-        C1 = LinExpr()  # Summary Length constraint
-        counter = -1
+        #print sen_var
+
+        #print con_var
+
+        #p = "" # Contains objective function
+        p_x = []
         for i in range(0,len(sen),1):
-            P += sen_var[i]
-            C1 += sen_var[i]
+            p_x.append("x%d" % (i+1))
+            p_x[i] = "x%d" % (i+1)
+            #p += p_x[i] + ' + '
+            #p = str(' + '.join(p_x))
+        #print(p)
+
+        p_y = []
+        for i in range(0,len(entities),1):
+            p_y.append("y%d" % (i+1))
+            p_y[i] = str(word[entities[i]]) + ' * ' + "y%d" % (i+1)
+            #p = p + str(' + '.join(p_y)
+
+        p = p_x + p_y
+        #print(p)
+
+        #print(' + '.join(p))
+        p_obj = (' + '.join(p))
+        #obj = Objective(sympify(p_obj), direction='max')
+
+        #C1 = LinExpr()  # Summary Length constraint
+
+        c1 = ""
+        c1_x = []
+        counter = -1
+
+        #c = ""
+        #c_y = []
+        constr = []
+
+        for i in range(0,len(sen),1):
+            c1_x.append("x%d" % (i+1))
+            c1_x[i] = "x%d" % (i+1)
+            #c1 += c1_x[i] + ' + '
             v = tweet_word[i+1][1]
-            #print(v)
-            C = LinExpr()
+            c = ""
+            c_y = []
             flag = 0
-            entities = list(entities)       
+            entities = list(entities)
+            #print(len(entities))
             for j in range(0,len(entities),1):
                 if entities[j] in v:
+                    #print(entities[j])
                     flag+=1
-                    C += con_var[j]
+                    c_y.append("y%d" % (j+1))
+                    #c_y[j] = "y%d" % (j+1)
+                    #c += c_y[j] + ' + '
+            #print(' + '.join(c_y))
+
+                    #c_y[j] = str(con_var[j]) + '*' + "y%d" % (j+1)
             if flag>0:
                 counter+=1
-                m.addConstr(C, GRB.GREATER_EQUAL, flag * sen_var[i], "c%d" % (counter))
+                constr.append("c%d" % (i+1))
+                #constr[i] = Constraint(sympify(' + '.join(c_y)), lb=flag * sen_var[i])
+                #constr[i] = str(' + '.join(c_y)) + ' + ' + str(flag * sen_var[i])
+                #constr[i] = Constraint(sympify(str(' + '.join(c_y)) + ' - ' + str(flag * sen_var[i])), lb=0)
+                #print("c%d" % (i+1) + ': ' + str(' + '.join(c_y)) + ' - ' + str(flag * sen_var[i]))
+                optlang_solve.write("c%d" % (counter+1) + " = Constraint(" + ' + '.join(c_y) + " - " + "%d * " % flag + sen_var[i] + ", lb=0)"  "\n")
+                # counter can be replaced by i
+
+        #print(c1)
+        # for i in range(0,len(sen),1):
+        #     #P += sen_var[i]
+        #     C1 += sen_var[i]
+        #     v = tweet_word[i+1][1]
+        #     #print(v)
+        #     C = LinExpr()
+        #     flag = 0
+        #     entities = list(entities)       
+        #     for j in range(0,len(entities),1):
+        #         if entities[j] in v:
+        #             flag+=1
+        #             C += con_var[j]
+        #     if flag>0:
+        #         counter+=1
+        #         m.addConstr(C, GRB.GREATER_EQUAL, flag * sen_var[i], "c%d" % (counter))
         
+        constr1 = []
+
         for i in range(0,len(entities),1):
-            P += word[entities[i]] * con_var[i]
-            C = LinExpr()
             flag = 0
+            c_x_en = []
             for j in range(0,len(sen),1):
                 v = tweet_word[j+1][1]
                 if entities[i] in v:
                     flag = 1
-                    C += sen_var[j]
+                    c_x_en.append("x%d" % (j+1))
+
+            #print(c_x_en)
             if flag==1:
                 counter+=1
-                m.addConstr(C,GRB.GREATER_EQUAL,con_var[i], "c%d" % (counter))
+                #constr1.append("c_%d" % (i+1))
+                constr1.append("c%d" % (i+1+len(sen)))
+                #constr1[i] = Constraint(sympify(str(' + '.join(c_y)) + ' - ' + str(flag * sen_var[i])), lb=0)
+                #print("c_%d" % (i+1) + ': ' + str(' + '.join(c_x_en)) + ' * ' + str(con_var[i]))
+                optlang_solve.write("c%d" % (counter+1) + " = Constraint(" + ' + '.join(c_x_en) + " - " + con_var[i] + ", lb=0)" "\n")
+                # counter can be replaced with i+len(sen)
+
+        # for i in range(0,len(entities),1):
+        #     #P += word[entities[i]] * con_var[i]
+        #     C = LinExpr()
+        #     flag = 0
+        #     for j in range(0,len(sen),1):
+        #         v = tweet_word[j+1][1]
+        #         if entities[i] in v:
+        #             flag = 1
+        #             C += sen_var[j]
+        #     if flag==1:
+        #         counter+=1
+        #         m.addConstr(C,GRB.GREATER_EQUAL,con_var[i], "c%d" % (counter))
 
         counter+=1
-        m.addConstr(C1,GRB.LESS_EQUAL,L, "c%d" % (counter))
+        optlang_solve.write("c%d" % (counter+1) + " = Constraint(" + ' + '.join(c1_x) + ", ub=" + "%d" % L + ")" "\n")
+
+        
+        #m.addConstr(C1,GRB.LESS_EQUAL,L, "c%d" % (counter))
+
+        optlang_solve.write("\nobj" + " = Objective(" + ' + '.join(p) + ", direction='max')" "\n")
+        constr2 = ["c%d" % (counter+1)]
+        
         
         ################ Set Objective Function #################################
-        m.setObjective(P, GRB.MAXIMIZE)
+        #m.setObjective(P, GRB.MAXIMIZE)
+        #m.write("output.lp")
+        constr3 = constr + constr1 + constr2
+        #print(constr)
+        #print(constr1)
+        #print(constr3)
+
+        optlang_solve.write("\nmodel = Model(name='Simple model')\n")
+        optlang_solve.write("model.objective = obj\n")
+        optlang_solve.write("model.add([" + ', '.join(constr3) + "])\n")
+        optlang_solve.write("status = model.optimize()\n")
+        optlang_solve.write("print(\"status:\", model.status)\n")
+        optlang_solve.write("print(\"objective value:\", model.objective.value)\n")
+        optlang_solve.write("print(\"----------\")\n")
+        #optlang_solve.write("for var_name, var in model.variables.iteritems():\n")
+        #optlang_solve.write("\tprint(var_name, \"=\", var.primal)\n")
 
         ############### Set Constraints ##########################################
 
         fo = open(ofname,'w')
+        #m.write(out.mps)
+        #m.write(out.lp)
         try:
             m.optimize()
             for v in m.getVars():
